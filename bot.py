@@ -4,6 +4,7 @@ from bs4 import BeautifulSoup
 import asyncio
 import os
 from dotenv import load_dotenv
+from keep_alive import keep_alive
 
 # Load variabel dari .env
 load_dotenv()
@@ -11,6 +12,9 @@ load_dotenv()
 # Ambil token dengan aman
 TOKEN = os.getenv("TOKEN")
 CHANNEL_ID = os.getenv("CHANNEL_ID")
+
+# Menjalankan scripty keep alive
+keep_alive()
 
 # Cek apakah variabel sudah dimuat dengan benar
 if not TOKEN or not CHANNEL_ID:
