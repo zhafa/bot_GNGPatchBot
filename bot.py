@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Ambil token dengan aman
-TOKEN = os.getenv("DISCORD_TOKEN")
+TOKEN = os.getenv("TOKEN")
 CHANNEL_ID = os.getenv("CHANNEL_ID")
 
 # Cek apakah variabel sudah dimuat dengan benar
