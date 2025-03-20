@@ -40,6 +40,14 @@ class PatchBot(discord.Client):
         except Exception as e:
             print(f"❌ Error di on_ready: {e}")
 
+    async def on_message(self, message):
+        """Mendeteksi jika pengguna mengetik !ping"""
+        if message.author == self.user:  # Hindari bot merespon pesan sendiri
+            return
+
+        if message.content == "!ping":
+            await message.channel.send("Pong! 🏓")
+
     async def get_latest_patch(self):
         """Scrape halaman utama untuk mendapatkan link patch terbaru"""
         try:
