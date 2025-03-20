@@ -29,11 +29,13 @@ class PatchBot(discord.Client):
     def __init__(self):
         super().__init__(intents=intents)
         self.latest_patch_url = None
-        self.session = aiohttp.ClientSession()  # Gunakan satu session untuk semua request
+        self.session = None  # Inisialisasi tanpa membuat session langsung
 
     async def on_ready(self):
         try:
             print(f'✅ Bot {self.user} sudah online!')
+            if self.session is None:
+                self.session = aiohttp.ClientSession()  # Buat session saat event loop sudah berjalan
             await self.check_patch_updates()
         except Exception as e:
             print(f"❌ Error di on_ready: {e}")
@@ -116,7 +118,8 @@ class PatchBot(discord.Client):
 
     async def close(self):
         """Tutup session saat bot dimatikan"""
-        await self.session.close()
+        if self.session:
+            await self.session.close()
         await super().close()
 
 bot = PatchBot()
