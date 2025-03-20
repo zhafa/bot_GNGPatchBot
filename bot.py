@@ -4,19 +4,15 @@ from bs4 import BeautifulSoup
 import asyncio
 import os
 from dotenv import load_dotenv
-from keep_alive import keep_alive
 
 # Load variabel dari .env
 load_dotenv()
 
-# Ambil token dengan aman
+# Ambil token & channel ID dengan aman
 TOKEN = os.getenv("TOKEN")
 CHANNEL_ID = os.getenv("CHANNEL_ID")
 
-# Menjalankan scripty keep alive
-keep_alive()
-
-# Cek apakah variabel sudah dimuat dengan benar
+# Validasi variabel
 if not TOKEN or not CHANNEL_ID:
     raise ValueError("❌ TOKEN atau CHANNEL_ID tidak ditemukan di .env!")
 
@@ -25,53 +21,60 @@ CHANNEL_ID = int(CHANNEL_ID)  # Konversi ke integer
 BASE_URL = "https://goldandglorymobile.com/ind/"
 ARTICLE_BASE_URL = "https://goldandglorymobile.com"
 
-# Aktifkan intents untuk membaca channel
+# Intents agar bisa membaca pesan
 intents = discord.Intents.default()
+intents.message_content = True  # Tambahkan jika bot perlu membaca pesan
 
 class PatchBot(discord.Client):
     def __init__(self):
         super().__init__(intents=intents)
         self.latest_patch_url = None
+        self.session = aiohttp.ClientSession()  # Gunakan satu session untuk semua request
 
     async def on_ready(self):
-        print(f'✅ Bot {self.user} sudah online!')
-        await self.check_patch_updates()
+        try:
+            print(f'✅ Bot {self.user} sudah online!')
+            await self.check_patch_updates()
+        except Exception as e:
+            print(f"❌ Error di on_ready: {e}")
 
     async def get_latest_patch(self):
         """Scrape halaman utama untuk mendapatkan link patch terbaru"""
-        async with aiohttp.ClientSession() as session:
-            try:
-                async with session.get(BASE_URL, timeout=10) as response:
-                    if response.status != 200:
-                        print(f"⚠️ Gagal mengambil data, status: {response.status}")
-                        return None, None
+        try:
+            async with self.session.get(BASE_URL, timeout=10) as response:
+                if response.status != 200:
+                    print(f"⚠️ Gagal mengambil data, status: {response.status}")
+                    return None, None
 
-                    soup = BeautifulSoup(await response.text(), "html.parser")
-                    latest_article = soup.find("a", class_="text-line none")
+                soup = BeautifulSoup(await response.text(), "html.parser")
+                latest_article = soup.find("a", class_="text-line none")
 
-                    if latest_article and "href" in latest_article.attrs:
-                        patch_url = ARTICLE_BASE_URL + latest_article["href"]
-                        patch_content = await self.get_patch_content(session, patch_url)
-                        return patch_url, patch_content
-            except Exception as e:
-                print(f"❌ Error saat mengambil patch terbaru: {e}")
+                if latest_article and "href" in latest_article.attrs:
+                    patch_url = ARTICLE_BASE_URL + latest_article["href"]
+                    patch_content = await self.get_patch_content(patch_url)
+                    return patch_url, patch_content
+        except Exception as e:
+            print(f"❌ Error saat mengambil patch terbaru: {e}")
         return None, None
 
-    async def get_patch_content(self, session, patch_url):
+    async def get_patch_content(self, patch_url):
         """Scrape halaman detail patch untuk mendapatkan isi update dengan format rapi"""
-        async with session.get(patch_url, timeout=10) as response:
-            if response.status != 200:
-                return "⚠️ Gagal mengambil detail patch."
+        try:
+            async with self.session.get(patch_url, timeout=10) as response:
+                if response.status != 200:
+                    return "⚠️ Gagal mengambil detail patch."
 
-            soup = BeautifulSoup(await response.text(), "html.parser")
-            content_div = soup.find("div", class_="article-content")  
+                soup = BeautifulSoup(await response.text(), "html.parser")
+                content_div = soup.find("div", class_="article-content")  
 
-            if content_div:
-                for br in content_div.find_all("br"):
-                    br.replace_with("\n")
+                if content_div:
+                    for br in content_div.find_all("br"):
+                        br.replace_with("\n")
 
-                content_text = "\n\n".join(p.get_text(strip=True, separator="\n") for p in content_div.find_all("p"))
-                return content_text.strip()
+                    content_text = "\n\n".join(p.get_text(strip=True, separator="\n") for p in content_div.find_all("p"))
+                    return content_text.strip()
+        except Exception as e:
+            print(f"❌ Error saat mengambil detail patch: {e}")
         return "Tidak ada detail patch yang ditemukan."
 
     async def check_patch_updates(self):
@@ -86,6 +89,7 @@ class PatchBot(discord.Client):
         while not self.is_closed():
             latest_patch_url, latest_patch_content = await self.get_latest_patch()
 
+            # Pastikan tidak posting ulang patch yang sama
             if latest_patch_url and latest_patch_url != self.latest_patch_url:
                 self.latest_patch_url = latest_patch_url
                 full_message = f"🔥 **Patch Baru!** 🔥\n{latest_patch_content}\n\nCek di {latest_patch_url}"
@@ -110,5 +114,14 @@ class PatchBot(discord.Client):
         messages.append(message)
         return messages
 
+    async def close(self):
+        """Tutup session saat bot dimatikan"""
+        await self.session.close()
+        await super().close()
+
 bot = PatchBot()
-bot.run(TOKEN)
+
+try:
+    bot.run(TOKEN)
+except Exception as e:
+    print(f"❌ Error saat menjalankan bot: {e}")
